@@ -67,10 +67,7 @@ export default function MapPage() {
   )
 
   // Latest values for map event handlers registered once.
-  const live = useRef({ byId, touch, hover })
-  useEffect(() => {
-    live.current = { byId, touch, hover }
-  })
+  const live = useRef({ byId, touch, hover, selectRoute: (_id: string) => {} })
 
   // 1. Create the map.
   useEffect(() => {
@@ -208,9 +205,14 @@ export default function MapPage() {
         return
       }
       if (live.current.touch) {
-        // Tap: show the card (or a list) in the bottom sheet; tapping the card opens Strava.
-        setHover({ ids, x: e.point.x, y: e.point.y, pinned: true })
-        setFocusId(ids.length === 1 ? ids[0] : null)
+        // Tap: one route selects it; several open a list in the bottom sheet.
+        if (ids.length === 1) {
+          live.current.selectRoute(ids[0])
+        } else {
+          setFocusId(null)
+          setPanelOpen(false)
+          setHover({ ids, x: e.point.x, y: e.point.y, pinned: true })
+        }
         return
       }
       if (ids.length === 1) {
@@ -266,6 +268,40 @@ export default function MapPage() {
     map.setPaintProperty(L_CORE, 'line-opacity', ids.length > 1 ? 0.35 : 1)
   }, [highlightKey, mapReady, activities])
 
+  // Touch: when a single route is selected, fit it in the space between the
+  // filter panel and the bottom sheet.
+  useEffect(() => {
+    const map = mapRef.current
+    const a = focusId ? byId.get(focusId) : undefined
+    if (!touch || !map || !a?.route.length) return
+    const pts = a.route.flatMap((seg) => decodePolyline(seg))
+    const lats = pts.map((p) => p[0])
+    const lngs = pts.map((p) => p[1])
+    const h = map.getContainer().clientHeight
+    const top = (document.querySelector('.panel')?.getBoundingClientRect().bottom ?? 0) + 16
+    const bottom = ((document.querySelector('.sheet') as HTMLElement | null)?.offsetHeight ?? 0) + 24
+    // Always leave at least ~120px of map for the route itself.
+    const squeeze = Math.min(1, (h - 120) / (top + bottom))
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: { top: top * squeeze, bottom: bottom * squeeze, left: 24, right: 24 }, maxZoom: 16, duration: 700 },
+    )
+  }, [focusId, touch, byId])
+
+  // Touch: choosing a route (on the map or from the list) behaves exactly like
+  // tapping that one route: it becomes the only highlighted route with its card below.
+  const selectRoute = (id: string) => {
+    setHover((h) => ({ ids: [id], x: h?.x ?? 0, y: h?.y ?? 0, pinned: true }))
+    setFocusId(id)
+    setPanelOpen(false)
+  }
+  useEffect(() => {
+    live.current = { byId, touch, hover, selectRoute }
+  })
+
   // Escape closes a pinned list / sheet.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -311,7 +347,7 @@ export default function MapPage() {
         <BottomSheet
           activities={hovered}
           focusId={focusId}
-          setFocusId={setFocusId}
+          onSelect={selectRoute}
           onClose={() => {
             setHover(null)
             setFocusId(null)
@@ -481,25 +517,18 @@ function HoverPopup(props: {
 function BottomSheet(props: {
   activities: Activity[]
   focusId: string | null
-  setFocusId: (id: string | null) => void
+  onSelect: (id: string) => void
   onClose: () => void
 }) {
-  const { activities, focusId, setFocusId, onClose } = props
+  const { activities, focusId, onSelect, onClose } = props
   const { fmtDist } = useUnits()
   const focused = activities.find((a) => a.id === focusId)
 
   return (
-    <div className="sheet" role="dialog" aria-label="Activity details">
+    // Keyed by content so switching from the list to a route slides the sheet up again.
+    <div className="sheet" key={focused ? focused.id : 'list'} role="dialog" aria-label="Activity details">
       <div className="sheet__bar">
-        {focused && activities.length > 1 ? (
-          <button className="sheet__back" onClick={() => setFocusId(null)}>
-            ← {activities.length} activities here
-          </button>
-        ) : (
-          <span className="sheet__title">
-            {focused ? 'Activity' : `${activities.length} activities here`}
-          </span>
-        )}
+        <span className="sheet__title">{focused ? 'Selected route' : `${activities.length} activities here`}</span>
         <button className="sheet__close" onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -512,7 +541,7 @@ function BottomSheet(props: {
         <ul className="overlap__list overlap__list--sheet">
           {activities.map((a) => (
             <li key={a.id}>
-              <button className="overlap__item" onClick={() => setFocusId(a.id)}>
+              <button className="overlap__item" onClick={() => onSelect(a.id)}>
                 <span className={`dot dot--${a.kind}`} />
                 <span className="overlap__name">{a.name}</span>
                 <span className="overlap__meta">
