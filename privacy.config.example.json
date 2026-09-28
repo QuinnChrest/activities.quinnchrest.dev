@@ -1,0 +1,7 @@
+{
+  "trimMeters": 300,
+  "zones": [
+    { "name": "home", "lat": 45.2935, "lng": -93.7881, "radius": 400 },
+    { "name": "work", "lat": 45.3102, "lng": -93.7990, "radius": 250 }
+  ]
+}

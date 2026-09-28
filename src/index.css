@@ -1,0 +1,266 @@
+:root {
+  --bg: #07080c;
+  --bg-2: #0d0f16;
+  --surface: rgba(15, 17, 25, 0.84);
+  --surface-solid: #11131c;
+  --surface-2: #171a25;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #eceef5;
+  --muted: #8b91a5;
+  --faint: #5a6073;
+  --bike: #3fd8ff;
+  --walk: #ff5fb8;
+  --bike-soft: rgba(63, 216, 255, 0.14);
+  --walk-soft: rgba(255, 95, 184, 0.14);
+  --radius: 14px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Space Grotesk', var(--font);
+  --shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--border);
+
+  color-scheme: dark;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bike);
+  outline-offset: 2px;
+}
+
+.page-loading {
+  padding: 40vh 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------- Shared controls ---------- */
+
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.chip {
+  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--border);
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.chip:hover {
+  color: var(--text);
+}
+
+.chip[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+.dot--bike {
+  background: var(--bike);
+  box-shadow: 0 0 10px var(--bike);
+}
+
+.dot--walk {
+  background: var(--walk);
+  box-shadow: 0 0 10px var(--walk);
+}
+
+/* "View on Strava" links: bold + underlined per Strava's brand guidelines. */
+.strava-link {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* ---------- Activity card ---------- */
+
+.card {
+  width: 300px;
+  max-width: 100%;
+  padding: 14px 16px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 18px var(--accent);
+}
+
+.card--bike {
+  --accent: var(--bike);
+}
+
+.card--walk {
+  --accent: var(--walk);
+}
+
+.card__kind {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.card__date {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.card__name {
+  margin: 8px 0 12px;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.card__stats dt {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.card__stats dd {
+  margin: 2px 0 0;
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.card__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.card__device {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ---------- Attribution ---------- */
+
+.attribution {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.attribution strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.attribution .sep {
+  color: var(--faint);
+}
+
+.attribution--compact {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .attribution:not(.attribution--compact) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .attribution:not(.attribution--compact) .sep {
+    display: none;
+  }
+}

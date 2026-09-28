@@ -1,0 +1,33 @@
+{
+  "name": "activities-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "data:sample": "tsx scripts/generate-sample.ts",
+    "data:import": "tsx scripts/import-export.ts"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.11.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@garmin/fitsdk": "^21.217.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "csv-parse": "^7.0.3",
+    "fast-xml-parser": "^5.11.1",
+    "oxlint": "^1.81.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}
