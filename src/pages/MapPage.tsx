@@ -114,8 +114,12 @@ export default function MapPage() {
 
     map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features } })
 
-    // Draw under the first label layer so place names stay readable.
-    const beforeId = map.getStyle().layers.find((l) => l.type === 'symbol')?.id
+    // Draw above every basemap line (roads, rail, boundaries) but under the
+    // place labels that follow them, so town names stay readable. (The first
+    // symbol layer overall is water names, which sit below the roads.)
+    const styleLayers = map.getStyle().layers
+    const lastLine = styleLayers.findLastIndex((l) => l.type === 'line')
+    const beforeId = styleLayers.slice(lastLine + 1).find((l) => l.type === 'symbol')?.id
 
     map.addLayer(
       {
@@ -172,21 +176,10 @@ export default function MapPage() {
       beforeId,
     )
 
-    // Frame the bulk of the activities (5th–95th percentile of start points, so one faraway trip doesn't zoom us out).
-    const starts = features.map((f) => f.geometry.coordinates[0][0])
-    if (starts.length) {
-      const q = (arr: number[], p: number) => arr.sort((a, b) => a - b)[Math.floor((arr.length - 1) * p)]
-      const lngs = starts.map((s) => s[0])
-      const lats = starts.map((s) => s[1])
-      const pad = 0.04
-      map.fitBounds(
-        [
-          [q(lngs, 0.05) - pad, q(lats, 0.05) - pad],
-          [q(lngs, 0.95) + pad, q(lats, 0.95) + pad],
-        ],
-        { padding: 40, duration: 0 },
-      )
-    }
+    // Frame "home turf": the densest ~20 km cell of start points, grown to the
+    // starts within ~30 km of it, so trips elsewhere don't pull the view away.
+    const bounds = homeBounds(features.map((f) => f.geometry.coordinates[0][0] as [number, number]))
+    if (bounds) map.fitBounds(bounds, { padding: 40, duration: 0 })
 
     // The hit layer is already wide (wider still on touch), so a point query is enough.
     const idsAt = (point: { x: number; y: number }) => {
@@ -331,6 +324,27 @@ export default function MapPage() {
       </div>
     </div>
   )
+}
+
+/** Bounds around the area with the most activity starts. Points are [lng, lat]. */
+function homeBounds(starts: [number, number][]): [[number, number], [number, number]] | undefined {
+  if (!starts.length) return undefined
+  const CELL = 0.2 // degrees, roughly 15–20 km in the mid latitudes
+  const counts = new Map<string, number>()
+  for (const [lng, lat] of starts) {
+    const key = `${Math.floor(lng / CELL)},${Math.floor(lat / CELL)}`
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const [best] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+  const [cx, cy] = best.split(',').map((n) => (Number(n) + 0.5) * CELL)
+  const near = starts.filter(([lng, lat]) => Math.abs(lng - cx) < 0.4 && Math.abs(lat - cy) < 0.3)
+  const lngs = near.map((s) => s[0])
+  const lats = near.map((s) => s[1])
+  const pad = 0.03
+  return [
+    [Math.min(...lngs) - pad, Math.min(...lats) - pad],
+    [Math.max(...lngs) + pad, Math.max(...lats) + pad],
+  ]
 }
 
 function ControlPanel(props: {

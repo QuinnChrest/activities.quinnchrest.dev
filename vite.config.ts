@@ -3,8 +3,9 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // "/" for a custom domain. For https://<user>.github.io/<repo>/ set VITE_BASE=/<repo>/.
-  base: process.env.VITE_BASE ?? '/',
+  // Relative asset paths, so one build works at the custom domain root and at
+  // https://<user>.github.io/<repo>/. (Hash routing keeps every page at the same path.)
+  base: process.env.VITE_BASE ?? './',
   plugins: [react()],
   // MapLibre's worker is an ES module.
   worker: { format: 'es' },
