@@ -31,7 +31,7 @@ const L_CORE = 'routes-highlight-core'
 
 const kindColor: ExpressionSpecification = ['match', ['get', 'kind'], 'bike', site.colors.bike, site.colors.walk]
 // Low per-line opacity: brightness comes from many activities stacking on the same road.
-const baseOpacity: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 8, 0.12, 12, 0.16, 16, 0.3]
+const baseOpacity: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 8, 0.22, 12, 0.28, 16, 0.4]
 const DIMMED_OPACITY = 0.04
 
 type Hover = { ids: string[]; x: number; y: number; pinned: boolean }
