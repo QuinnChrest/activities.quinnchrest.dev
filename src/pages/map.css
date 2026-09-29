@@ -423,3 +423,64 @@
     bottom: calc(34px + env(safe-area-inset-bottom));
   }
 }
+
+/* ---------- Desktop: selected route card ---------- */
+
+.selected {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  width: 320px;
+  border-radius: 18px;
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: selected-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes selected-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.selected__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 10px 4px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.selected__close {
+  border: 0;
+  background: rgba(255, 255, 255, 0.07);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.selected__close:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.selected .card {
+  width: 100%;
+  box-shadow: none;
+  background: transparent;
+}
+
+.selected .strava-link:hover {
+  color: var(--bike);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selected {
+    animation: none;
+  }
+}

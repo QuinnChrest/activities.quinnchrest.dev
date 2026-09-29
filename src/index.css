@@ -264,3 +264,8 @@ button {
     display: none;
   }
 }
+
+/* Non-link action text on a card, e.g. "Click to select". */
+.card__hint {
+  color: var(--muted);
+}

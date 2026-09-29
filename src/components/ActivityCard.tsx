@@ -14,7 +14,13 @@ const SPORT_LABELS: Record<string, string> = {
 export const sportLabel = (a: Activity) =>
   SPORT_LABELS[a.sportType] ?? a.sportType.replace(/([a-z])([A-Z])/g, '$1 $2')
 
-export function ActivityCard({ activity: a, action }: { activity: Activity; action: string }) {
+/**
+ * `href` makes the action a real link ("View on Strava"). Without it the action
+ * is just text: a hint like "Click to select", or link-styled when a parent
+ * element is the link (the mobile sheet wraps the whole card).
+ */
+export function ActivityCard(props: { activity: Activity; action: string; href?: string }) {
+  const { activity: a, action, href } = props
   const { fmtDist, fmtElev } = useUnits()
   return (
     <div className={`card card--${a.kind}`}>
@@ -41,7 +47,13 @@ export function ActivityCard({ activity: a, action }: { activity: Activity; acti
         </div>
       </dl>
       <div className="card__foot">
-        <span className="strava-link">{action}</span>
+        {href ? (
+          <a className="strava-link" href={href} target="_blank" rel="noopener">
+            {action}
+          </a>
+        ) : (
+          <span className={action.startsWith('Click') ? 'card__hint' : 'strava-link'}>{action}</span>
+        )}
         {a.device === 'garmin' && <span className="card__device">Garmin</span>}
       </div>
     </div>

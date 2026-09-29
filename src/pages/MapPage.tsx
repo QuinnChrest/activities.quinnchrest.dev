@@ -50,7 +50,9 @@ export default function MapPage() {
   const [kinds, setKinds] = useState<Record<ActivityKind, boolean>>({ bike: true, walk: true })
   const [year, setYear] = useState<number | 'all'>('all')
   const [hover, setHover] = useState<Hover | null>(null)
+  // focusId: a transient highlight (hovering a list item). selectedId: the chosen route.
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia('(max-width: 640px)').matches)
 
   const byId = useMemo(() => new Map(activities?.map((a) => [a.id, a])), [activities])
@@ -67,7 +69,7 @@ export default function MapPage() {
   )
 
   // Latest values for map event handlers registered once.
-  const live = useRef({ byId, touch, hover, selectRoute: (_id: string) => {} })
+  const live = useRef({ byId, touch, hover, selectedId, selectRoute: (_id: string) => {} })
 
   // 1. Create the map.
   useEffect(() => {
@@ -188,9 +190,11 @@ export default function MapPage() {
     }
 
     const onMove = (e: { point: { x: number; y: number } }) => {
-      if (live.current.touch || live.current.hover?.pinned) return
+      if (live.current.touch) return
       const ids = idsAt(e.point)
       map.getCanvas().style.cursor = ids.length ? 'pointer' : ''
+      // A pinned list or a selected route stays put until it's closed or something else is clicked.
+      if (live.current.hover?.pinned || live.current.selectedId) return
       setFocusId(null)
       setHover(ids.length ? { ids, x: e.point.x, y: e.point.y, pinned: false } : null)
     }
@@ -200,28 +204,21 @@ export default function MapPage() {
     const onClick = (e: { point: { x: number; y: number } }) => {
       const ids = idsAt(e.point)
       if (!ids.length) {
+        // Clicking empty map clears everything.
         setHover(null)
         setFocusId(null)
-        return
-      }
-      if (live.current.touch) {
-        // Tap: one route selects it; several open a list in the bottom sheet.
-        if (ids.length === 1) {
-          live.current.selectRoute(ids[0])
-        } else {
-          setFocusId(null)
-          setPanelOpen(false)
-          setHover({ ids, x: e.point.x, y: e.point.y, pinned: true })
-        }
+        setSelectedId(null)
         return
       }
       if (ids.length === 1) {
-        window.open(stravaUrl(ids[0]), '_blank', 'noopener')
-      } else {
-        // Several routes here: pin the list so the pointer can move into it.
-        setFocusId(null)
-        setHover({ ids, x: e.point.x, y: e.point.y, pinned: true })
+        live.current.selectRoute(ids[0])
+        return
       }
+      // Several routes here: show a list (pinned on desktop so the pointer can move into it).
+      setFocusId(null)
+      setSelectedId(null)
+      if (live.current.touch) setPanelOpen(false)
+      setHover({ ids, x: e.point.x, y: e.point.y, pinned: true })
     }
 
     map.on('mousemove', onMove)
@@ -250,10 +247,11 @@ export default function MapPage() {
     map.setFilter(L_HIT, filter)
     setHover(null)
     setFocusId(null)
+    setSelectedId(null)
   }, [kinds, year, mapReady, activities])
 
   // 4. Highlight hovered/selected routes and dim everything else.
-  const highlightIds = focusId ? [focusId] : (hover?.ids ?? [])
+  const highlightIds = selectedId ? [selectedId] : focusId ? [focusId] : (hover?.ids ?? [])
   const highlightKey = highlightIds.join(',')
   useEffect(() => {
     const map = mapRef.current
@@ -268,38 +266,52 @@ export default function MapPage() {
     map.setPaintProperty(L_CORE, 'line-opacity', ids.length > 1 ? 0.35 : 1)
   }, [highlightKey, mapReady, activities])
 
-  // Touch: when a single route is selected, fit it in the space between the
-  // filter panel and the bottom sheet.
+  // When a route is selected, fit it into the part of the map not covered by UI:
+  // between the filter panel and the bottom sheet on touch, and between the
+  // filter panel and the selected-route card on desktop.
   useEffect(() => {
     const map = mapRef.current
-    const a = focusId ? byId.get(focusId) : undefined
-    if (!touch || !map || !a?.route.length) return
+    const a = selectedId ? byId.get(selectedId) : undefined
+    if (!map || !a?.route.length) return
     const pts = a.route.flatMap((seg) => decodePolyline(seg))
     const lats = pts.map((p) => p[0])
     const lngs = pts.map((p) => p[1])
+    const w = map.getContainer().clientWidth
     const h = map.getContainer().clientHeight
-    const top = (document.querySelector('.panel')?.getBoundingClientRect().bottom ?? 0) + 16
-    const bottom = ((document.querySelector('.sheet') as HTMLElement | null)?.offsetHeight ?? 0) + 24
-    // Always leave at least ~120px of map for the route itself.
-    const squeeze = Math.min(1, (h - 120) / (top + bottom))
+    const panel = document.querySelector('.panel')?.getBoundingClientRect()
+    let padding: { top: number; bottom: number; left: number; right: number }
+    if (touch) {
+      const top = (panel?.bottom ?? 0) + 16
+      const bottom = ((document.querySelector('.sheet') as HTMLElement | null)?.offsetHeight ?? 0) + 24
+      // Always leave at least ~120px of map for the route itself.
+      const squeeze = Math.min(1, (h - 120) / (top + bottom))
+      padding = { top: top * squeeze, bottom: bottom * squeeze, left: 24, right: 24 }
+    } else {
+      const card = document.querySelector('.selected')?.getBoundingClientRect()
+      const left = (panel?.right ?? 0) + 32
+      const right = (card ? w - card.left : 0) + 32
+      const squeeze = Math.min(1, (w - 200) / (left + right))
+      padding = { top: 48, bottom: 48, left: left * squeeze, right: right * squeeze }
+    }
     map.fitBounds(
       [
         [Math.min(...lngs), Math.min(...lats)],
         [Math.max(...lngs), Math.max(...lats)],
       ],
-      { padding: { top: top * squeeze, bottom: bottom * squeeze, left: 24, right: 24 }, maxZoom: 16, duration: 700 },
+      { padding, maxZoom: 16, duration: 700 },
     )
-  }, [focusId, touch, byId])
+  }, [selectedId, touch, byId])
 
-  // Touch: choosing a route (on the map or from the list) behaves exactly like
-  // tapping that one route: it becomes the only highlighted route with its card below.
+  // Choosing a route (clicking/tapping it on the map, or picking it from a list)
+  // makes it the only highlighted route, shows its card, and zooms to it.
   const selectRoute = (id: string) => {
-    setHover((h) => ({ ids: [id], x: h?.x ?? 0, y: h?.y ?? 0, pinned: true }))
-    setFocusId(id)
-    setPanelOpen(false)
+    setSelectedId(id)
+    setHover(null)
+    setFocusId(null)
+    if (touch) setPanelOpen(false)
   }
   useEffect(() => {
-    live.current = { byId, touch, hover, selectRoute }
+    live.current = { byId, touch, hover, selectedId, selectRoute }
   })
 
   // Escape closes a pinned list / sheet.
@@ -308,6 +320,7 @@ export default function MapPage() {
       if (e.key === 'Escape') {
         setHover(null)
         setFocusId(null)
+        setSelectedId(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -315,6 +328,12 @@ export default function MapPage() {
   }, [])
 
   const hovered = hover?.ids.map((id) => byId.get(id)).filter((a): a is Activity => !!a) ?? []
+  const selected = selectedId ? byId.get(selectedId) : undefined
+  const clearAll = () => {
+    setHover(null)
+    setFocusId(null)
+    setSelectedId(null)
+  }
 
   return (
     <div className="map-page">
@@ -335,24 +354,18 @@ export default function MapPage() {
       {state.status === 'loading' && <div className="map-status">Loading activities…</div>}
       {state.status === 'error' && <div className="map-status map-status--error">{state.error}</div>}
 
-      {hover && hovered.length > 0 && !touch && (
+      {!touch && selected && <SelectedCard activity={selected} onClose={clearAll} />}
+      {!touch && !selected && hover && hovered.length > 0 && (
         <HoverPopup
           hover={hover}
           activities={hovered}
           focusId={focusId}
           setFocusId={setFocusId}
+          onSelect={selectRoute}
         />
       )}
-      {hover && hovered.length > 0 && touch && (
-        <BottomSheet
-          activities={hovered}
-          focusId={focusId}
-          onSelect={selectRoute}
-          onClose={() => {
-            setHover(null)
-            setFocusId(null)
-          }}
-        />
+      {touch && (selected || (hover && hovered.length > 0)) && (
+        <BottomSheet list={hovered} selected={selected} onSelect={selectRoute} onClose={clearAll} />
       )}
 
       <div className="map-attribution">
@@ -459,8 +472,9 @@ function HoverPopup(props: {
   activities: Activity[]
   focusId: string | null
   setFocusId: (id: string | null) => void
+  onSelect: (id: string) => void
 }) {
-  const { hover, activities, focusId, setFocusId } = props
+  const { hover, activities, focusId, setFocusId, onSelect } = props
   const { fmtDist } = useUnits()
   // The map fills the viewport, so the window size is the container size.
   const w = window.innerWidth
@@ -476,7 +490,7 @@ function HoverPopup(props: {
   if (activities.length === 1) {
     return (
       <div className="popup" style={style}>
-        <ActivityCard activity={activities[0]} action="Click to view on Strava" />
+        <ActivityCard activity={activities[0]} action="Click to select" />
       </div>
     )
   }
@@ -491,11 +505,9 @@ function HoverPopup(props: {
         <ul className="overlap__list" onMouseLeave={() => setFocusId(null)}>
           {activities.map((a) => (
             <li key={a.id}>
-              <a
-                href={stravaUrl(a.id)}
-                target="_blank"
-                rel="noopener"
+              <button
                 className={`overlap__item ${focusId === a.id ? 'is-focus' : ''}`}
+                onClick={() => onSelect(a.id)}
                 onMouseEnter={() => setFocusId(a.id)}
                 onFocus={() => setFocusId(a.id)}
               >
@@ -504,42 +516,57 @@ function HoverPopup(props: {
                 <span className="overlap__meta">
                   {fmtDate(a.startLocal, { weekday: undefined })} · {fmtDist(a.distance)}
                 </span>
-              </a>
+              </button>
             </li>
           ))}
         </ul>
-        {hover.pinned && <div className="overlap__hint">Click an activity to view it on Strava</div>}
+        {hover.pinned && <div className="overlap__hint">Click an activity to select it</div>}
       </div>
     </div>
   )
 }
 
+/** Desktop: the selected route's card, pinned to the top-right corner. */
+function SelectedCard({ activity: a, onClose }: { activity: Activity; onClose: () => void }) {
+  return (
+    <div className="selected" key={a.id} role="dialog" aria-label="Selected route">
+      <div className="selected__bar">
+        <span>Selected route</span>
+        <button className="selected__close" onClick={onClose} aria-label="Close" title="Close (Esc)">
+          ✕
+        </button>
+      </div>
+      <ActivityCard activity={a} action="View on Strava" href={stravaUrl(a.id)} />
+    </div>
+  )
+}
+
+/** Touch: a sheet that slides up with the selected route's card, or a list to choose from. */
 function BottomSheet(props: {
-  activities: Activity[]
-  focusId: string | null
+  list: Activity[]
+  selected?: Activity
   onSelect: (id: string) => void
   onClose: () => void
 }) {
-  const { activities, focusId, onSelect, onClose } = props
+  const { list, selected, onSelect, onClose } = props
   const { fmtDist } = useUnits()
-  const focused = activities.find((a) => a.id === focusId)
 
   return (
     // Keyed by content so switching from the list to a route slides the sheet up again.
-    <div className="sheet" key={focused ? focused.id : 'list'} role="dialog" aria-label="Activity details">
+    <div className="sheet" key={selected ? selected.id : 'list'} role="dialog" aria-label="Activity details">
       <div className="sheet__bar">
-        <span className="sheet__title">{focused ? 'Selected route' : `${activities.length} activities here`}</span>
+        <span className="sheet__title">{selected ? 'Selected route' : `${list.length} activities here`}</span>
         <button className="sheet__close" onClick={onClose} aria-label="Close">
           ✕
         </button>
       </div>
-      {focused ? (
-        <a className="sheet__card" href={stravaUrl(focused.id)} target="_blank" rel="noopener">
-          <ActivityCard activity={focused} action="View on Strava" />
+      {selected ? (
+        <a className="sheet__card" href={stravaUrl(selected.id)} target="_blank" rel="noopener">
+          <ActivityCard activity={selected} action="View on Strava" />
         </a>
       ) : (
         <ul className="overlap__list overlap__list--sheet">
-          {activities.map((a) => (
+          {list.map((a) => (
             <li key={a.id}>
               <button className="overlap__item" onClick={() => onSelect(a.id)}>
                 <span className={`dot dot--${a.kind}`} />
