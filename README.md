@@ -109,33 +109,47 @@ bucket activities into local days) and the minimum distance for the
 3. Without a custom domain (served from `https://<user>.github.io/<repo>/`),
    build with `VITE_BASE=/<repo>/`.
 
-The committed `public/data/activities.json` is what gets deployed. To update
-it, re-run the import and commit the file.
+The committed `public/data/activities.json` is what gets deployed. The weekly sync
+(below) keeps it current; you can also re-run the import and commit the file.
 
 Cloudflare Pages also works: build command `npm run build`, output directory
 `dist`.
 
-## Phase 2: nightly sync from the Strava API (designed, not built)
+## Weekly sync from the Strava API
 
-Every source produces the same `RawActivity` shape and goes through the same
-pipeline (`scripts/lib/pipeline.ts`):
+`.github/workflows/sync-strava.yml` runs every Monday (and on demand from the
+Actions tab). It fetches the last 7 days of activities, runs them through the
+same pipeline as the export import, merges them into `activities.json` by id,
+pushes to `main` if anything changed, and starts the deploy.
 
 ```
 source (export | sample | api) → privacy → simplify → encode → merge by id → activities.json
 ```
 
-`scripts/sources/strava-api.ts` describes the planned flow:
-
-- A scheduled workflow exchanges a stored refresh token (GitHub secrets
-  `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`) for an
-  access token.
-- It fetches activities newer than the latest one in the JSON, pulls each
-  activity's `latlng` stream, and runs the same privacy pipeline with
-  `PRIVACY_CONFIG` from secrets.
-- It writes with `{ merge: true }` and commits the JSON, which triggers a deploy.
-
 The existing JSON is already privacy-processed, so CI never needs the raw
-history.
+history. Re-fetching a week that's already in the file is harmless and picks up
+renamed or edited activities.
+
+### One-time setup
+
+1. Create an app at <https://www.strava.com/settings/api> with
+   **Authorization Callback Domain** set to `localhost`.
+2. Add repo secrets (Settings → Secrets and variables → Actions):
+   `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and `PRIVACY_CONFIG` (the
+   contents of `privacy.config.json`). From PowerShell:
+   `Get-Content privacy.config.json -Raw | gh secret set PRIVACY_CONFIG`.
+3. Put `STRAVA_CLIENT_ID=…` and `STRAVA_CLIENT_SECRET=…` in `.env` (gitignored).
+4. Run `npm run strava:auth`. It opens Strava, asks for the
+   `activity:read_all` scope, and stores the resulting refresh token as the
+   `STRAVA_REFRESH_TOKEN` secret via `gh`, without printing it. Add `-- --env`
+   to also save it to `.env` for local runs.
+
+The refresh token shown on Strava's API settings page only has the `read`
+scope and can't list activities, so use the one from `strava:auth`. If the
+sync ever fails with a token error, run `strava:auth` again.
+
+To sync locally (with all four values in `.env` or `privacy.config.json`):
+`npm run data:sync -- --days 30`.
 
 ## Attribution
 
@@ -157,3 +171,5 @@ history.
 | `npm run preview` | Serve the production build |
 | `npm run data:sample -- [--seed 42]` | Generate sample data |
 | `npm run data:import -- <dir> [--merge]` | Import a Strava bulk export |
+| `npm run data:sync -- [--days 7]` | Merge recent activities from the Strava API |
+| `npm run strava:auth -- [--env]` | One-time OAuth; stores the refresh token as a GitHub secret |

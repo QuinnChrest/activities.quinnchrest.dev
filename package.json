@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "data:sample": "tsx scripts/generate-sample.ts",
-    "data:import": "tsx scripts/import-export.ts"
+    "data:import": "tsx scripts/import-export.ts",
+    "data:sync": "tsx scripts/sync-strava.ts",
+    "strava:auth": "tsx scripts/strava-auth.ts"
   },
   "dependencies": {
     "maplibre-gl": "^6.11.2",
