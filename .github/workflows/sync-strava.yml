@@ -1,0 +1,52 @@
+name: Weekly Strava sync
+
+on:
+  schedule:
+    # Mondays 12:00 UTC (early morning US Central).
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: How many days back to fetch
+        default: '7'
+
+permissions:
+  contents: write # push activities.json
+  actions: write # trigger the deploy workflow
+
+concurrency:
+  group: strava-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run data:sync -- --days "$DAYS"
+        env:
+          DAYS: ${{ inputs.days || '7' }}
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          PRIVACY_CONFIG: ${{ secrets.PRIVACY_CONFIG }}
+      - name: Commit, push and deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- public/data/activities.json; then
+            echo "No new activities."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/activities.json
+          git commit -m "Sync Strava activities"
+          git push
+          # Pushes made with GITHUB_TOKEN don't trigger other workflows, so start the deploy explicitly.
+          gh workflow run deploy.yml --ref main
